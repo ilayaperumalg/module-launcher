@@ -17,19 +17,11 @@
 package org.springframework.pipes.module.launcher;
 
 import java.io.File;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.loader.JarLauncher;
 import org.springframework.boot.loader.archive.JarFileArchive;
-import org.springframework.context.ApplicationContextInitializer;
-import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.core.env.PropertiesPropertySource;
-import org.springframework.core.io.DefaultResourceLoader;
-import org.springframework.util.StringUtils;
 
 /**
  * Bootstrap for launching one or more modules. The module path(s), relative to the module home, must be provided via
@@ -75,7 +67,8 @@ public class ModuleLauncher {
 			moduleHome = DEFAULT_MODULE_HOME;
 		}
 		ModuleLauncher launcher = new ModuleLauncher(new File(moduleHome));
-		launcher.launch(StringUtils.tokenizeToStringArray(modules, ","));
+		//launcher.launch(StringUtils.tokenizeToStringArray(modules, ","));
+		launcher.launch(modules);
 	}
 
 
@@ -94,37 +87,11 @@ public class ModuleLauncher {
 		public void run() {
 			try {
 				JarFileArchive jarFileArchive = new JarFileArchive(new File(moduleHome, module));
-				URLClassLoader classLoader = new URLClassLoader(new URL[] { jarFileArchive.getUrl() },
-						Thread.currentThread().getContextClassLoader());
-				Thread.currentThread().setContextClassLoader(classLoader);
-				new SpringApplicationBuilder(jarFileArchive.getMainClass())
-						.resourceLoader(new DefaultResourceLoader(classLoader))
-						.initializers(new ModuleLauncherPropertySourceInitializer(module))
-						.run();
+				JarLauncher jarLauncher = new JarLauncher(jarFileArchive);
+				jarLauncher.launch(new String[]{});
 			}
 			catch (Exception e) {
 				e.printStackTrace();
-			}
-		}
-
-		private static class ModuleLauncherPropertySourceInitializer
-				implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-
-			private final String module;
-
-			ModuleLauncherPropertySourceInitializer(String module) {
-				this.module = module;
-			}
-
-			@Override
-			public void initialize(ConfigurableApplicationContext applicationContext) {
-				Properties initialProperties = new Properties();
-				String moduleName = StringUtils.delete(module, ".jar");
-				initialProperties.put("spring.jmx.default-domain", moduleName +
-						StringUtils.replace(applicationContext.getId(), ":", "-"));
-				PropertiesPropertySource moduleLauncherPS =
-						new PropertiesPropertySource("moduleLauncherProps", initialProperties);
-				applicationContext.getEnvironment().getPropertySources().addLast(moduleLauncherPS);
 			}
 		}
 	}
